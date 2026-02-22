@@ -363,6 +363,7 @@ async function loadFolder(path) {
       if (post.frontMatter?.platforms) html += `<span class="badge badge-channel">${post.frontMatter.platforms}</span>`;
       html += '</div>';
       html += `<div class="post-card-actions">`;
+      html += `<button class="btn-sm" onclick="copyPath('${escapedPath}', this)">Path</button>`;
       html += `<button class="btn-sm" onclick="copyPostText('${escapedPath}', this)">Copy</button>`;
       html += `</div></div>`;
       html += `<div class="post-card-title" onclick="loadPost('${escapedPath}')">${title}</div>`;
@@ -419,7 +420,7 @@ function copyPath(path, btn) {
   navigator.clipboard.writeText(path).then(() => {
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy Path'; btn.classList.remove('copied'); }, 1500);
+    setTimeout(() => { btn.textContent = 'Path'; btn.classList.remove('copied'); }, 1500);
   });
 }
 
