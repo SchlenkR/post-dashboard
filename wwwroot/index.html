@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --fg: #e0e0e0; --fg2: #a0a0b0; --accent: #e94560;
+  --card: #1f2940; --border: #2a3a5c;
+  --badge-draft: #f0ad4e; --badge-posted: #5cb85c;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--fg); display: flex; height: 100vh; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 320px; min-width: 320px; background: var(--bg2);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 0; }
+.sidebar h1 { font-size: 16px; padding: 0 16px 12px; color: var(--accent); letter-spacing: 1px; }
+
+/* Tree */
+.tree-ul { list-style: none; padding: 0; margin: 0; }
+.tree-ul .tree-ul { padding-left: 14px; }
+.tree-node { user-select: none; }
+.tree-row { display: flex; align-items: center; padding: 3px 8px 3px 0; cursor: pointer;
+  font-size: 12px; color: var(--fg2); border-left: 3px solid transparent;
+  transition: all 0.12s; }
+.tree-row:hover { background: rgba(255,255,255,0.05); color: var(--fg); }
+.tree-row.active { border-left-color: var(--accent); background: rgba(233,69,96,0.1); color: var(--fg); }
+.tree-toggle { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--fg2); flex-shrink: 0; transition: transform 0.15s; }
+.tree-toggle.open { transform: rotate(90deg); }
+.tree-toggle.leaf { visibility: hidden; }
+.tree-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; }
+.tree-label.has-posts { color: var(--fg); font-weight: 600; }
+.root-section { margin-bottom: 4px; }
+.root-header { font-weight: 700; font-size: 14px; color: var(--fg); text-transform: uppercase;
+  letter-spacing: 1px; padding: 10px 16px 8px; display: flex; align-items: center; cursor: pointer; }
+.root-header:hover { background: rgba(255,255,255,0.05); }
+.tree-children { overflow: hidden; }
+.tree-children.collapsed { display: none; }
+
+/* Toolbar */
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.toolbar h2 { font-size: 20px; color: var(--fg); margin-left: 12px; }
+.view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.view-toggle button { padding: 6px 14px; border: none; background: var(--bg3); color: var(--fg2);
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.view-toggle button.active { background: var(--accent); color: #fff; }
+.view-toggle button:hover:not(.active) { background: rgba(255,255,255,0.1); }
+
+/* Main */
+.main { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* Post Grid */
+.post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.post-grid.expanded { grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); }
+.post-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; transition: border-color 0.2s; }
+.post-card:hover { border-color: var(--accent); }
+.post-card-body { padding: 14px; }
+.post-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.post-card-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.post-card-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+.btn-sm { padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg3);
+  color: var(--fg); cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.15s; white-space: nowrap; }
+.btn-sm:hover { background: var(--accent); border-color: var(--accent); }
+.btn-sm.copied { background: var(--badge-posted); border-color: var(--badge-posted); }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-channel { background: var(--bg3); color: #7ec8e3; }
+.badge-channel[data-ch="X"] { color: #1da1f2; }
+.badge-channel[data-ch="LinkedIn"] { color: #0077b5; }
+.badge-channel[data-ch="Bluesky"] { color: #00c4ff; }
+.badge-channel[data-ch="Reddit"] { color: #ff5700; }
+.badge-channel[data-ch="Discord"] { color: #7289da; }
+.badge-channel[data-ch="Instagram"] { color: #e1306c; }
+.badge-channel[data-ch="TikTok"] { color: #fe2c55; }
+.badge-draft { background: rgba(240,173,78,0.2); color: var(--badge-draft); }
+.badge-posted { background: rgba(92,184,92,0.2); color: var(--badge-posted); }
+.post-card-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; cursor: pointer; }
+.post-card-preview { font-size: 12px; color: var(--fg2); line-height: 1.5; cursor: pointer; }
+.post-card-expanded { font-size: 13px; color: var(--fg); line-height: 1.7; white-space: pre-wrap;
+  background: var(--bg); border-radius: 6px; padding: 12px; margin-top: 8px; }
+.post-card-date { font-size: 11px; color: var(--fg2); margin-top: 8px; }
+
+/* Media thumbs in cards */
+.post-card-media { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.media-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.media-item img, .media-item video {
+  width: 56px; height: 56px; object-fit: cover; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg3); transition: border-color 0.15s; }
+.media-item img:hover, .media-item video:hover { border-color: var(--accent); }
+.media-item img.dragging { opacity: 0.4; }
+.media-label { font-size: 9px; color: var(--fg2); text-align: center; word-break: break-all;
+  line-height: 1.2; max-width: 80px; overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Detail View */
+.detail { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 24px; }
+.detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+.detail-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail-actions { display: flex; gap: 8px; }
+.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3);
+  color: var(--fg); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+.btn:hover { background: var(--accent); border-color: var(--accent); }
+.btn-copy { background: var(--accent); border-color: var(--accent); }
+.btn-copy:hover { opacity: 0.85; }
+.btn-save { background: var(--badge-posted); border-color: var(--badge-posted); }
+.btn-save:hover { opacity: 0.85; }
+.btn-back { background: transparent; }
+.detail-body { background: var(--bg); border-radius: 6px; padding: 16px; margin: 16px 0;
+  white-space: pre-wrap; font-size: 14px; line-height: 1.7; font-family: inherit;
+  min-height: 200px; max-height: 500px; overflow-y: auto; outline: none; border: 2px solid transparent; }
+.detail-body:focus { border-color: var(--accent); }
+.detail-body.dirty { border-color: var(--badge-draft); }
+.detail-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 16px; }
+.detail-media-item { display: flex; flex-direction: column; gap: 4px; }
+.detail-media-item img { width: 100%; border-radius: 6px; cursor: pointer; transition: opacity 0.15s; }
+.detail-media-item img:hover { opacity: 0.85; }
+.detail-media-item video { width: 100%; border-radius: 6px; cursor: pointer; }
+.detail-media-label { font-size: 11px; color: var(--fg2); word-break: break-all; line-height: 1.3; }
+
+/* Empty state */
+.empty { text-align: center; color: var(--fg2); padding: 60px 20px; }
+.empty p { font-size: 14px; margin-top: 8px; }
+
+/* Lightbox */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex;
+  flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+.lightbox img { max-width: 92%; max-height: 85%; object-fit: contain; cursor: pointer; }
+.lightbox video { max-width: 92%; max-height: 85%; object-fit: contain; border-radius: 8px; }
+.lightbox-close { position: absolute; top: 16px; right: 24px; font-size: 32px; color: #fff;
+  cursor: pointer; opacity: 0.7; transition: opacity 0.15s; z-index: 101; }
+.lightbox-close:hover { opacity: 1; }
+.lightbox-label { color: var(--fg2); font-size: 13px; margin-top: 10px; word-break: break-all;
+  max-width: 90%; text-align: center; }
+</style>
+</head>
+<body>
+<nav class="sidebar">
+  <h1>POST DASHBOARD</h1>
+  <div id="tree"></div>
+</nav>
+<main class="main" id="main">
+  <div class="empty"><h2>Post Dashboard</h2><p>Select a folder to browse posts</p></div>
+</main>
+
+<script>
+let currentPath = null;
+let viewMode = 'expanded';
+let folderPostsCache = {};
+
+function buildTreeNode(node, depth) {
+  const li = document.createElement('li');
+  li.className = 'tree-node';
+
+  const row = document.createElement('div');
+  row.className = 'tree-row';
+  row.style.paddingLeft = (depth * 14 + 8) + 'px';
+
+  const toggle = document.createElement('span');
+  const hasChildren = node.children && node.children.length > 0;
+  toggle.className = 'tree-toggle' + (hasChildren ? '' : ' leaf');
+  toggle.textContent = '\u25B6';
+
+  const label = document.createElement('span');
+  label.className = 'tree-label' + (node.hasPosts ? ' has-posts' : '');
+  label.textContent = node.name;
+  label.title = node.name;
+
+  row.appendChild(toggle);
+  row.appendChild(label);
+  li.appendChild(row);
+
+  let childrenUl = null;
+  if (hasChildren) {
+    childrenUl = document.createElement('ul');
+    childrenUl.className = 'tree-ul tree-children collapsed';
+    for (const child of node.children) {
+      childrenUl.appendChild(buildTreeNode(child, depth + 1));
+    }
+    li.appendChild(childrenUl);
+  }
+
+  row.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (hasChildren) {
+      const isOpen = !childrenUl.classList.contains('collapsed');
+      if (isOpen) {
+        childrenUl.classList.add('collapsed');
+        toggle.classList.remove('open');
+      } else {
+        childrenUl.classList.remove('collapsed');
+        toggle.classList.add('open');
+      }
+    }
+    if (node.hasPosts) {
+      document.querySelectorAll('.tree-row').forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+      loadFolder(node.path);
+    }
+  });
+
+  return li;
+}
+
+async function loadRoots() {
+  const roots = await (await fetch('/api/roots')).json();
+  const tree = document.getElementById('tree');
+  tree.innerHTML = '';
+  for (const root of roots) {
+    const section = document.createElement('div');
+    section.className = 'root-section';
+
+    const header = document.createElement('div');
+    header.className = 'root-header';
+
+    const toggle = document.createElement('span');
+    toggle.className = 'tree-toggle open';
+    toggle.textContent = '\u25B6';
+    toggle.style.marginRight = '6px';
+
+    const label = document.createElement('span');
+    label.textContent = root.name;
+
+    header.appendChild(toggle);
+    header.appendChild(label);
+    section.appendChild(header);
+
+    const childrenUl = document.createElement('ul');
+    childrenUl.className = 'tree-ul tree-children';
+    if (root.children) {
+      for (const child of root.children) {
+        childrenUl.appendChild(buildTreeNode(child, 0));
+      }
+    }
+    section.appendChild(childrenUl);
+
+    header.addEventListener('click', () => {
+      const isOpen = !childrenUl.classList.contains('collapsed');
+      if (isOpen) {
+        childrenUl.classList.add('collapsed');
+        toggle.classList.remove('open');
+      } else {
+        childrenUl.classList.remove('collapsed');
+        toggle.classList.add('open');
+      }
+      if (root.hasPosts) {
+        document.querySelectorAll('.tree-row').forEach(r => r.classList.remove('active'));
+        loadFolder(root.path);
+      }
+    });
+
+    tree.appendChild(section);
+  }
+}
+
+function makeMediaDraggable(el, mediaUrl) {
+  el.draggable = true;
+  el.addEventListener('dragstart', (e) => {
+    el.classList.add('dragging');
+    // Set the full media URL so it can be dropped into other browser windows/apps
+    const fullUrl = window.location.origin + '/media?path=' + encodeURIComponent(mediaUrl);
+    e.dataTransfer.setData('text/uri-list', fullUrl);
+    e.dataTransfer.setData('text/plain', fullUrl);
+    // For image drops into other apps, also set the image itself
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl)) {
+      e.dataTransfer.setData('text/html', `<img src="${fullUrl}">`);
+    }
+    e.dataTransfer.effectAllowed = 'copyLink';
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+}
+
+function mediaFileName(fullPath) {
+  return fullPath.split('/').pop() || fullPath;
+}
+
+function mediaRelativePath(fullPath) {
+  // Extract last 2 path segments (folder/filename)
+  const parts = fullPath.split('/');
+  return parts.length >= 2 ? parts.slice(-2).join('/') : parts.pop() || fullPath;
+}
+
+function renderMediaThumbs(mediaFiles) {
+  if (!mediaFiles || mediaFiles.length === 0) return '';
+  let html = '<div class="post-card-media">';
+  for (const m of mediaFiles) {
+    const src = '/media?path=' + encodeURIComponent(m);
+    const name = mediaFileName(m);
+    html += '<div class="media-item">';
+    if (/\.(mp4|mov)$/i.test(m)) {
+      html += `<video src="${src}" data-path="${esc(m)}" muted></video>`;
+    } else {
+      html += `<img src="${src}" data-path="${esc(m)}" loading="lazy">`;
+    }
+    html += `<span class="media-label" title="${esc(mediaRelativePath(m))}">${esc(name)}</span>`;
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function bindDragEvents(container) {
+  container.querySelectorAll('.post-card-media img, .post-card-media video').forEach(el => {
+    makeMediaDraggable(el, el.dataset.path);
+  });
+  container.querySelectorAll('.post-card-media img, .post-card-media video').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      lightbox(el.src, el.dataset.path);
+    });
+  });
+  container.querySelectorAll('.detail-media-item img, .detail-media-item video').forEach(el => {
+    makeMediaDraggable(el, el.dataset.path);
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      lightbox(el.src, el.dataset.path);
+    });
+  });
+}
+
+async function loadFolder(path) {
+  currentPath = path;
+  const data = await (await fetch('/api/folder?path=' + encodeURIComponent(path))).json();
+  const main = document.getElementById('main');
+
+  if (viewMode === 'expanded') {
+    folderPostsCache = {};
+    const fetches = data.posts.map(async (post) => {
+      const full = await (await fetch('/api/post?path=' + encodeURIComponent(post.filePath))).json();
+      folderPostsCache[post.filePath] = full;
+    });
+    await Promise.all(fetches);
+  }
+
+  let html = '<div class="toolbar">';
+  html += '<div class="view-toggle">';
+  html += `<button class="${viewMode === 'preview' ? 'active' : ''}" onclick="setView('preview')">Preview</button>`;
+  html += `<button class="${viewMode === 'expanded' ? 'active' : ''}" onclick="setView('expanded')">Expanded</button>`;
+  html += '</div>';
+  html += `<h2>${esc(data.name)}</h2>`;
+  html += `<button class="btn-sm" onclick="copyPath('${esc(data.path).replace(/'/g, "\\'")}', this)">Copy Path</button>`;
+  html += '</div>';
+
+  if (data.posts.length > 0) {
+    html += `<div class="post-grid${viewMode === 'expanded' ? ' expanded' : ''}">`;
+    for (const post of data.posts) {
+      const channel = detectChannel(post);
+      const status = post.frontMatter?.status || '';
+      const date = post.frontMatter?.created || post.frontMatter?.date || '';
+      const title = extractTitle(post);
+      const escapedPath = esc(post.filePath).replace(/'/g, "\\'");
+
+      html += '<div class="post-card">';
+      html += '<div class="post-card-body">';
+      html += '<div class="post-card-header"><div class="post-card-badges">';
+      if (channel) html += `<span class="badge badge-channel" data-ch="${channel}">${channel}</span>`;
+      if (status === 'draft') html += '<span class="badge badge-draft">Draft</span>';
+      else if (status === 'posted' || post.frontMatter?.posted) html += '<span class="badge badge-posted">Posted</span>';
+      if (post.frontMatter?.platforms) html += `<span class="badge badge-channel">${post.frontMatter.platforms}</span>`;
+      html += '</div>';
+      html += `<div class="post-card-actions">`;
+      html += `<button class="btn-sm" onclick="copyPostText('${escapedPath}', this)">Copy</button>`;
+      html += `</div></div>`;
+      html += `<div class="post-card-title" onclick="loadPost('${escapedPath}')">${title}</div>`;
+
+      if (viewMode === 'expanded') {
+        const full = folderPostsCache[post.filePath];
+        if (full) {
+          html += `<div class="post-card-expanded">${esc(full.fullBody)}</div>`;
+        }
+      } else {
+        html += `<div class="post-card-preview" onclick="loadPost('${escapedPath}')">${esc(post.bodyPreview)}</div>`;
+      }
+
+      // Media thumbs
+      html += renderMediaThumbs(post.mediaFiles);
+
+      if (date) html += `<div class="post-card-date">${date}</div>`;
+      html += '</div></div>';
+    }
+    html += '</div>';
+  }
+
+  if (data.posts.length === 0 && data.mediaFiles.length > 0) {
+    html += '<div class="detail-media">';
+    for (const m of data.mediaFiles) {
+      const src = '/media?path=' + encodeURIComponent(m);
+      const relPath = mediaRelativePath(m);
+      html += '<div class="detail-media-item">';
+      if (/\.(mp4|mov)$/i.test(m)) {
+        html += `<video src="${src}" data-path="${esc(m)}"></video>`;
+      } else {
+        html += `<img src="${src}" data-path="${esc(m)}" loading="lazy">`;
+      }
+      html += `<span class="detail-media-label">${esc(relPath)}</span>`;
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  if (data.posts.length === 0 && data.mediaFiles.length === 0) {
+    html += '<div class="empty"><p>No posts with YAML frontmatter in this folder</p></div>';
+  }
+
+  main.innerHTML = html;
+  bindDragEvents(main);
+}
+
+function setView(mode) {
+  viewMode = mode;
+  if (currentPath) loadFolder(currentPath);
+}
+
+function copyPath(path, btn) {
+  navigator.clipboard.writeText(path).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy Path'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+async function copyPostText(path, btn) {
+  try {
+    const data = await (await fetch('/api/post?path=' + encodeURIComponent(path))).json();
+    await navigator.clipboard.writeText(data.fullBody || '');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  } catch (e) {
+    btn.textContent = 'Error';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  }
+}
+
+async function loadPost(path) {
+  const data = await (await fetch('/api/post?path=' + encodeURIComponent(path))).json();
+  const main = document.getElementById('main');
+  const channel = data.frontMatter?.channel || detectChannelFromName(data.fileName);
+  const status = data.frontMatter?.status || '';
+
+  let html = '<div class="detail">';
+  html += '<div class="detail-header"><div class="detail-meta">';
+  if (channel) html += `<span class="badge badge-channel" data-ch="${channel}">${channel}</span>`;
+  if (status) html += `<span class="badge badge-${status === 'draft' ? 'draft' : 'posted'}">${status}</span>`;
+  if (data.frontMatter?.language) html += `<span class="badge badge-channel">${data.frontMatter.language.toUpperCase()}</span>`;
+  if (data.frontMatter?.target) html += `<span class="badge badge-channel">${data.frontMatter.target}</span>`;
+  if (data.frontMatter?.created) html += `<span class="badge badge-channel">${data.frontMatter.created}</span>`;
+  if (data.frontMatter?.date) html += `<span class="badge badge-channel">${data.frontMatter.date}</span>`;
+  html += '</div><div class="detail-actions">';
+  html += `<button class="btn btn-back" onclick="loadFolder(currentPath)">Back</button>`;
+  html += `<button class="btn btn-copy" onclick="copyBody()">Copy</button>`;
+  html += `<button class="btn btn-save" id="saveBtn" onclick="savePost()" style="display:none">Save</button>`;
+  html += '</div></div>';
+
+  if (data.frontMatter?.notes) {
+    html += `<div style="font-size:12px;color:var(--fg2);margin-bottom:12px;font-style:italic">${esc(data.frontMatter.notes)}</div>`;
+  }
+
+  html += `<div class="detail-body" id="postBody" contenteditable="true">${esc(data.fullBody)}</div>`;
+
+  if (data.mediaFiles && data.mediaFiles.length > 0) {
+    html += '<div class="detail-media">';
+    for (const m of data.mediaFiles) {
+      const src = '/media?path=' + encodeURIComponent(m);
+      const relPath = mediaRelativePath(m);
+      html += '<div class="detail-media-item">';
+      if (/\.(mp4|mov)$/i.test(m)) {
+        html += `<video src="${src}" data-path="${esc(m)}"></video>`;
+      } else {
+        html += `<img src="${src}" data-path="${esc(m)}" loading="lazy">`;
+      }
+      html += `<span class="detail-media-label">${esc(relPath)}</span>`;
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  main.innerHTML = html;
+  window._postPath = data.filePath;
+  window._postBody = data.fullBody;
+  window._postDirty = false;
+
+  const bodyEl = document.getElementById('postBody');
+  bodyEl.addEventListener('input', () => {
+    window._postDirty = true;
+    bodyEl.classList.add('dirty');
+    document.getElementById('saveBtn').style.display = '';
+  });
+
+  bindDragEvents(main);
+}
+
+function copyBody() {
+  const bodyEl = document.getElementById('postBody');
+  const text = bodyEl?.innerText || window._postBody || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+async function savePost() {
+  const bodyEl = document.getElementById('postBody');
+  const newBody = bodyEl.innerText;
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = 'Saving...';
+
+  try {
+    const res = await fetch('/api/post/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: window._postPath, body: newBody }),
+    });
+    if (res.ok) {
+      btn.textContent = 'Saved!';
+      bodyEl.classList.remove('dirty');
+      window._postBody = newBody;
+      window._postDirty = false;
+      setTimeout(() => { btn.style.display = 'none'; btn.textContent = 'Save'; }, 1500);
+    } else {
+      btn.textContent = 'Error!';
+      setTimeout(() => btn.textContent = 'Save', 2000);
+    }
+  } catch (e) {
+    btn.textContent = 'Error!';
+    setTimeout(() => btn.textContent = 'Save', 2000);
+  }
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function detectChannel(post) {
+  if (post.frontMatter?.channel) return post.frontMatter.channel;
+  return detectChannelFromName(post.fileName);
+}
+
+function detectChannelFromName(name) {
+  const channels = ['X', 'LinkedIn', 'Bluesky', 'Reddit', 'Discord', 'Instagram', 'TikTok'];
+  for (const ch of channels) {
+    if (name.toLowerCase().startsWith(ch.toLowerCase())) return ch;
+  }
+  return null;
+}
+
+function extractTitle(post) {
+  const match = post.bodyPreview?.match(/^#+ (.+)/m);
+  if (match) return match[1];
+  return post.fileName.replace('.md', '');
+}
+
+function lightbox(src, fullPath) {
+  const lb = document.createElement('div');
+  lb.className = 'lightbox';
+  const isVideo = /\.(mp4|mov)$/i.test(fullPath || src);
+  const relPath = fullPath ? mediaRelativePath(fullPath) : '';
+
+  let inner = '<span class="lightbox-close">&times;</span>';
+  if (isVideo) {
+    inner += `<video src="${src}" controls autoplay style="max-width:92%;max-height:85%;border-radius:8px;"></video>`;
+  } else {
+    inner += `<img src="${src}">`;
+  }
+  if (relPath) {
+    inner += `<div class="lightbox-label">${esc(relPath)}</div>`;
+  }
+  lb.innerHTML = inner;
+
+  // Close on background click or X, but not on video/img itself
+  lb.addEventListener('click', (e) => {
+    if (e.target === lb || e.target.classList.contains('lightbox-close')) {
+      const vid = lb.querySelector('video');
+      if (vid) vid.pause();
+      lb.remove();
+    }
+  });
+  // Close on Escape
+  const onKey = (e) => { if (e.key === 'Escape') { lb.remove(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+
+  document.body.appendChild(lb);
+}
+
+loadRoots();
+</script>
+</body>
+</html>
