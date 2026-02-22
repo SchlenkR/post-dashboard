@@ -11,11 +11,21 @@ app.UseStaticFiles();
 // Configuration
 // ============================================================
 
-var contentRoots = new (string Name, string Path)[]
-{
-    ("SocialMedia", "/Users/ronald/Library/Mobile Documents/iCloud~md~obsidian/Documents/Default/SocialMedia"),
-    ("VideoProduction", "/Users/ronald/Library/Mobile Documents/iCloud~md~obsidian/Documents/Default/VideoProduction"),
-};
+// Content roots can be configured here or passed via command line:
+//   dotnet run -- "My Posts=/path/to/posts" "Other=/path/to/content"
+var contentRoots = args.Length > 0
+    ? args.Select(a =>
+    {
+        var eq = a.IndexOf('=');
+        return eq > 0
+            ? (Name: a[..eq], Path: a[(eq + 1)..])
+            : (Name: Path.GetFileName(a), Path: a);
+    }).ToArray()
+    : new (string Name, string Path)[]
+    {
+        // If no args provided, add your content directories here:
+        // ("My Posts", "/path/to/your/posts"),
+    };
 
 var excludeDirs = new HashSet<string>(StringComparer.Ordinal)
 {

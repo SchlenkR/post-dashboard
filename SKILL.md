@@ -15,9 +15,9 @@ A minimal, local web dashboard for managing social media posts stored as markdow
 
 - **Tech**: ASP.NET Core (.NET 10) Minimal API + vanilla JS SPA
 - **Port**: `http://localhost:5124`
-- **Start**: `dotnet run`
+- **Start**: `dotnet run -- "Name=/path/to/posts"`
 
-You point it at one or more content root directories (configured in `Program.cs`). It recursively scans for `.md` files with YAML frontmatter and displays them in a dark-themed web dashboard.
+You point it at one or more content root directories via command-line arguments or in `Program.cs`. It recursively scans for `.md` files with YAML frontmatter and displays them in a dark-themed web dashboard.
 
 ## Post File Format
 
@@ -83,15 +83,19 @@ Supported formats: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.mp4`, `.mov`
 
 ## Configuration
 
-Content roots are configured in `Program.cs`:
+Content roots can be passed as command-line arguments:
 
-```csharp
-var contentRoots = new (string Name, string Path)[]
-{
-    ("My Posts", "/path/to/my/posts"),
-    ("Another Folder", "/path/to/other/content"),
-};
+```bash
+dotnet run -- "My Posts=/path/to/my/posts" "Another Folder=/path/to/other/content"
 ```
+
+If only a path is given (no `=`), the folder name is used as the display name:
+
+```bash
+dotnet run -- /path/to/my/posts
+```
+
+Alternatively, configure them directly in `Program.cs`.
 
 ## API
 
