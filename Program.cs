@@ -11,10 +11,21 @@ app.UseStaticFiles();
 // Configuration
 // ============================================================
 
-// Content roots can be configured here or passed via command line:
-//   dotnet run -- "My Posts=/path/to/posts" "Other=/path/to/content"
-var contentRoots = args.Length > 0
-    ? args.Select(a =>
+// Usage: dotnet run -- --done=/path/to/done "Name=/path/to/posts" ...
+var doneArg = args.FirstOrDefault(a => a.StartsWith("--done=", StringComparison.OrdinalIgnoreCase));
+var doneDir = doneArg?["--done=".Length..];
+if (string.IsNullOrWhiteSpace(doneDir))
+{
+    Console.Error.WriteLine("ERROR: --done=/path/to/done-directory is required.");
+    Console.Error.WriteLine("Usage: dotnet run -- --done=/path/to/done \"Name=/path/to/posts\" ...");
+    return;
+}
+if (!Directory.Exists(doneDir))
+    Directory.CreateDirectory(doneDir);
+
+var contentArgs = args.Where(a => !a.StartsWith("--done=", StringComparison.OrdinalIgnoreCase)).ToArray();
+var contentRoots = contentArgs.Length > 0
+    ? contentArgs.Select(a =>
     {
         var eq = a.IndexOf('=');
         return eq > 0
@@ -308,6 +319,35 @@ app.MapGet("/media", async (string path, HttpContext ctx) =>
         ctx.Response.ContentLength = fileLength;
         await ctx.Response.SendFileAsync(path, ctx.RequestAborted);
     }
+});
+
+app.MapPost("/api/mark-done", async (HttpRequest req) =>
+{
+    var doc = await JsonDocument.ParseAsync(req.Body);
+    var folderPath = doc.RootElement.GetProperty("path").GetString()!;
+
+    if (!IsAllowedPath(folderPath) || !Directory.Exists(folderPath))
+        return Results.NotFound("Folder not found");
+
+    var dirName = Path.GetFileName(folderPath);
+    var datePrefixed = $"{DateTime.Now:yyyy-MM-dd} {dirName}";
+    var destination = Path.Combine(doneDir!, datePrefixed);
+
+    if (Directory.Exists(destination))
+        return Results.Conflict(new { error = $"Destination already exists: {datePrefixed}" });
+
+    Directory.Move(folderPath, destination);
+    return Results.Ok(new { moved = true, destination });
+});
+
+app.MapGet("/api/open-finder", (string path) =>
+{
+    if (!IsAllowedPath(path) || !File.Exists(path))
+        return Results.NotFound("File not found");
+
+    // Reveal the file in Finder (macOS)
+    System.Diagnostics.Process.Start("open", $"-R \"{path}\"");
+    return Results.Ok(new { opened = true });
 });
 
 app.MapGet("/health", () => new { Status = "ok", Port = 5124 });
