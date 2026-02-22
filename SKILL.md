@@ -1,28 +1,27 @@
 ---
 name: post-dashboard
-description: "Manage social media posts via the Post Dashboard — a local ASP.NET Core web tool for browsing, editing, and previewing markdown-based posts with media assets."
+description: "A local ASP.NET Core web dashboard for browsing, editing, and previewing markdown-based social media posts with media assets."
 user-invokable: false
 metadata:
-  author: Ronald
+  author: Ronald Schlenker
   version: "1.0.0"
 ---
 
-# Post Dashboard Skill
+# Post Dashboard
 
-Local web dashboard for managing social media posts stored as markdown files with YAML frontmatter.
+A minimal, local web dashboard for managing social media posts stored as markdown files with YAML frontmatter. No database, no CMS, no cloud — just files on disk.
 
-## Quick Reference
+## How It Works
 
-- **Repo**: `~/repos/github/post-dashboard/`
-- **Symlink**: `ronaldsWorkspace/tools/post-dashboard` -> repo
-- **Tech**: ASP.NET Core (.NET 10) Minimal API, vanilla JS SPA
+- **Tech**: ASP.NET Core (.NET 10) Minimal API + vanilla JS SPA
 - **Port**: `http://localhost:5124`
-- **Start**: `dotnet run --project tools/post-dashboard`
-- **VSCode Task**: `WS :: post-dashboard: start`
+- **Start**: `dotnet run`
+
+You point it at one or more content root directories (configured in `Program.cs`). It recursively scans for `.md` files with YAML frontmatter and displays them in a dark-themed web dashboard.
 
 ## Post File Format
 
-Every post is a `.md` file with YAML frontmatter. Files without `---` header are ignored.
+Every post is a `.md` file with YAML frontmatter. Files without a `---` header are ignored.
 
 ```markdown
 ---
@@ -32,7 +31,7 @@ target: "Personal Profile"
 language: en
 created: 2026-02-22
 posted:
-notes: "Optional description of the post's purpose"
+notes: "Internal notes — shown in dashboard, not part of the post"
 ---
 
 The actual post content goes here.
@@ -40,74 +39,66 @@ The actual post content goes here.
 #hashtag1 #hashtag2
 ```
 
-### Required YAML Fields
+### YAML Fields
 
-| Field | Values | Description |
-|-------|--------|-------------|
-| `status` | `draft`, `posted` | Current state of the post |
-| `channel` | `LinkedIn`, `X`, `Bluesky`, `TikTok`, `Instagram`, `Reddit`, `Discord` | Target platform |
-| `created` | `YYYY-MM-DD` | Creation date |
+| Field | Required | Values / Description |
+|-------|----------|---------------------|
+| `status` | yes | `draft` or `posted` |
+| `channel` | yes | `LinkedIn`, `X`, `Bluesky`, `TikTok`, `Instagram`, `Reddit`, `Discord` |
+| `created` | yes | `YYYY-MM-DD` |
+| `target` | no | Account/profile (e.g. `"@handle"`, `"Personal Profile"`) |
+| `language` | no | e.g. `en`, `de` |
+| `posted` | no | Date when published (leave empty for drafts) |
+| `notes` | no | Internal notes, not part of the post body |
 
-### Optional YAML Fields
+If no `channel` field is present, the channel is detected from the filename (e.g. `LinkedIn.md` -> LinkedIn).
 
-| Field | Description |
-|-------|-------------|
-| `target` | Account/profile (e.g. `"@SchlenkR"`, `"Personal Profile"`) |
-| `language` | `en` or `de` |
-| `posted` | Date when posted (leave empty for drafts) |
-| `notes` | Internal notes (shown in dashboard, not part of post) |
+## Organizing Posts
 
-## Folder Structure
-
-Posts live in the Obsidian vault under `SocialMedia/`:
+The recommended structure is one folder per post idea, one markdown file per platform:
 
 ```
-SocialMedia/
-├── _ideas_general/     # Tech content — one subfolder per post idea
-│   └── Post Dashboard Tool/
-│       ├── LinkedIn.md
-│       ├── X.md
-│       ├── Bluesky.md
-│       └── screenshot.png    # Assets live alongside posts
-├── _ideas_pxl/         # PXL Clock marketing posts
-├── _assets/            # Shared media assets
-└── _done/              # Archived/completed posts
+my-post-idea/
+├── LinkedIn.md
+├── X.md
+├── Bluesky.md
+├── photo.jpg        # Media assets live alongside posts
+└── demo.mp4
 ```
 
-### Conventions
+### Media Assets
 
-- One **folder per post idea**, one **file per platform**
-- File naming: `{Channel}.md` (e.g. `LinkedIn.md`, `X.md`, `Bluesky.md`)
-- **Assets** (images, videos) go directly in the post folder
-- Supported media: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.mp4`, `.mov`
-- Channel detection: from YAML `channel` field, or from filename prefix
+Images and videos placed in the same folder as the post files are automatically picked up and shown as thumbnails.
+
+Supported formats: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.mp4`, `.mov`
 
 ## Dashboard Features
 
-- **Sidebar**: Tree navigation of all post folders (only shows folders containing YAML posts)
-- **Card View**: Preview or expanded mode for all posts in a folder
-- **Detail View**: Click a post to see full content, edit inline, and save
-- **Media Preview**: Thumbnails with filenames; click to open lightbox (images + video streaming)
+- **Tree sidebar**: Navigates all configured content roots; only shows folders that contain YAML posts
+- **Card view**: Preview or expanded mode for all posts in a folder
+- **Detail view**: Full post content with inline editing and save
+- **Media lightbox**: Click any asset thumbnail to see a large preview (images) or play video (with streaming/seeking)
 - **Copy**: Copy post text or folder path to clipboard
-- **Drag & Drop**: Drag media assets to other apps
-- **Video Streaming**: HTTP Range Request support for seeking/scrubbing
+- **Drag & drop**: Drag media assets into other apps
 
-## Content Roots
+## Configuration
 
-The dashboard scans these directories (configured in `Program.cs`):
+Content roots are configured in `Program.cs`:
 
 ```csharp
-("SocialMedia", "...Default/SocialMedia"),
-("VideoProduction", "...Default/VideoProduction"),
+var contentRoots = new (string Name, string Path)[]
+{
+    ("My Posts", "/path/to/my/posts"),
+    ("Another Folder", "/path/to/other/content"),
+};
 ```
 
-## API Endpoints
+## API
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/roots` | Tree structure of all content roots |
 | `GET /api/folder?path=` | Posts and media in a folder |
-| `GET /api/post?path=` | Full post content with frontmatter |
+| `GET /api/post?path=` | Full post content with parsed frontmatter |
 | `POST /api/post/save` | Save edited post body (preserves frontmatter) |
-| `GET /media?path=` | Serve media files (with Range Request support) |
-| `GET /health` | Server status |
+| `GET /media?path=` | Serve media files (supports HTTP Range Requests) |
